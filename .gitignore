@@ -1,0 +1,69 @@
+# Build directories
+build/
+cmake-build-*/
+out/
+
+# Compiled Object files
+*.o
+*.obj
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+openconstruct-jetson-daemon
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# Test results
+Testing/
+tests/test_jetson
+
+# Config files (with secrets)
+*.conf
+*.config
+!example.conf
+
+# Model files (large binaries)
+*.onnx
+*.trt
+*.engine
+*.pb
+models/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+
+# Package files
+*.tar.gz
+*.zip
+*.deb
+*.rpm
