@@ -1,4 +1,5 @@
 #include "openconstruct-jetson.hpp"
+#include "cuda_bridge.h"
 #include <cuda_runtime.h>
 #include <cstring>
 #include <stdexcept>
@@ -46,8 +47,11 @@ __global__ void audio_preprocess_kernel(
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (idx < length) {
-        // Hann window function
-        float window = 0.5f * (1.0f - cosf(2.0f * M_PI * idx / (length - 1)));
+        // Hann window function. Guard the length==1 case to avoid dividing by
+        // zero (the window would be degenerate anyway); use 1 as the divisor
+        // so a single sample yields the neutral window value of 0.0.
+        const int denom = (length > 1) ? (length - 1) : 1;
+        float window = 0.5f * (1.0f - cosf(2.0f * M_PI * idx / denom));
         output[idx] = input[idx] * window;
     }
 }

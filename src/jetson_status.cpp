@@ -1,29 +1,18 @@
 #include "openconstruct-jetson.hpp"
+#include "cuda_bridge.h"
 #include <fstream>
 #include <sstream>
+#include <iostream>
 #include <chrono>
 #include <thread>
+#include <stdexcept>
 
-#ifdef MOCK_CUDA
-// Mock CUDA functions for testing on non-Jetson systems
-extern "C" {
-    void* cuda_create_stream() { return reinterpret_cast<void*>(0xDEADBEEF); }
-    void cuda_destroy_stream(void* stream) { (void)stream; }
-    void cuda_image_to_grayscale(const unsigned char*, unsigned char*, int, int, void*) {}
-    void cuda_audio_preprocess(const float*, float*, int, void*) {}
-    void cuda_extract_features(const unsigned char*, float*, int, int, int, void*) {}
-    void cuda_synchronize_stream(void* stream) {}
-    int cuda_get_device_count() { return 1; }
-    void cuda_get_device_properties(int, char*, int, int*, int*, size_t*) {
-        static const char* mock_name = "Mock Jetson GPU";
-        strcpy(name, mock_name);
-        *compute_major = 7;
-        *compute_minor = 2;
-        *total_mem = 8ULL * 1024 * 1024 * 1024; // 8GB
-    }
-    size_t cuda_get_free_memory(int) { return 4ULL * 1024 * 1024 * 1024; } // 4GB free
-}
-#endif
+// NOTE: The mock implementations of the cuda_* entry points used to live here,
+// guarded by MOCK_CUDA. They referenced undeclared parameter names and never
+// compiled, and defining them in this translation unit risked ODR violations
+// against cuda_sense.cu. They now live in their own translation unit,
+// src/cuda_sense_mock.cpp, which is compiled instead of cuda_sense.cu in mock
+// mode.
 
 namespace openconstruct {
 namespace jetson {
@@ -146,17 +135,13 @@ std::string OpenConstructJetson::system_status() {
 }
 
 void OpenConstructJetson::process_command(const std::string& cmd) {
-    // Delegate to Plato shell
-    class PlatoJetsonImpl {
-    public:
-        static void execute(OpenConstructJetson* parent, const std::string& cmd) {
-            PlatoJetson shell(parent);
-            std::string response = shell.process(cmd);
-            std::cout << response << std::endl;
-        }
-    };
-
-    PlatoJetsonImpl::execute(this, cmd);
+    // Delegate to the Plato shell. process_plato_command() is declared in the
+    // public header and implemented in plato_jetson.cpp; previously this method
+    // tried to instantiate the PlatoJetson class directly, but that class is
+    // only defined in plato_jetson.cpp and was therefore invisible here, which
+    // made the whole translation unit fail to compile.
+    std::string response = process_plato_command(this, cmd);
+    std::cout << response << std::endl;
 }
 
 void OpenConstructJetson::run() {
@@ -204,6 +189,28 @@ bool OpenConstructJetson::cuda_available() const {
 
 // Private methods
 
+namespace {
+// Parse an integer config value without throwing. A malformed or out-of-range
+// value logs a warning and falls back to `fallback` so that a single bad line
+// in the config file can never crash init().
+int parse_int_or(const std::string& s, int fallback) {
+    try {
+        size_t consumed = 0;
+        int result = std::stoi(s, &consumed);
+        // Reject values with trailing garbage (e.g. "12abc").
+        std::string rest = s.substr(consumed);
+        if (rest.find_first_not_of(" \t") != std::string::npos) {
+            throw std::invalid_argument("trailing characters");
+        }
+        return result;
+    } catch (const std::exception& e) {
+        std::cerr << "Warning: ignoring malformed numeric config value '"
+                  << s << "' (" << e.what() << "), using " << fallback << std::endl;
+        return fallback;
+    }
+}
+} // namespace
+
 bool OpenConstructJetson::load_config(const char* path) {
     std::ifstream file(path);
     if (!file.is_open()) {
@@ -227,13 +234,13 @@ bool OpenConstructJetson::load_config(const char* path) {
             if (key == "model_path") {
                 config_.model_path = value;
             } else if (key == "gpu_device_id") {
-                config_.gpu_device_id = std::stoi(value);
+                config_.gpu_device_id = parse_int_or(value, config_.gpu_device_id);
             } else if (key == "camera_width") {
-                config_.camera_width = std::stoi(value);
+                config_.camera_width = parse_int_or(value, config_.camera_width);
             } else if (key == "camera_height") {
-                config_.camera_height = std::stoi(value);
+                config_.camera_height = parse_int_or(value, config_.camera_height);
             } else if (key == "audio_sample_rate") {
-                config_.audio_sample_rate = std::stoi(value);
+                config_.audio_sample_rate = parse_int_or(value, config_.audio_sample_rate);
             } else if (key == "enable_tensorrt") {
                 config_.enable_tensorrt = (value == "true" || value == "1");
             } else if (key == "enable_mock_mode") {
@@ -293,7 +300,6 @@ std::string OpenConstructJetson::format_gpu_status() {
                                     &major, &minor, &total_mem);
 
         size_t free_mem = cuda_get_free_memory(config_.gpu_device_id);
-        double used_mem_gb = (total_mem - free_mem) / (1024.0 * 1024.0 * 1024.0);
         double total_mem_gb = total_mem / (1024.0 * 1024.0 * 1024.0);
         double free_mem_gb = free_mem / (1024.0 * 1024.0 * 1024.0);
         double utilization = (1.0 - static_cast<double>(free_mem) / total_mem) * 100.0;

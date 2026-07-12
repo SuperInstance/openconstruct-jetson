@@ -53,7 +53,7 @@ public:
 private:
     OpenConstructJetson* parent_;
 
-    std::string handle_status(const std::vector<std::string>& args) {
+    std::string handle_status(const std::vector<std::string>& /*args*/) {
         return parent_->system_status();
     }
 
@@ -69,7 +69,7 @@ private:
         }
     }
 
-    std::string handle_restart(const std::vector<std::string>& args) {
+    std::string handle_restart(const std::vector<std::string>& /*args*/) {
         // In a real implementation, this would restart the service
         // For now, return success
         return "RESTART: Restart command received. Service restart initiated.";
@@ -87,7 +87,12 @@ private:
             oss << "  (List not available in this interface)\n";
             return oss.str();
         } else if (args[0] == "add" && args.size() >= 3) {
-            int device_id = std::stoi(args[1]);
+            int device_id;
+            try {
+                device_id = std::stoi(args[1]);
+            } catch (const std::exception&) {
+                return "ERROR: Camera device ID must be an integer, got '" + args[1] + "'";
+            }
             std::string name = args[2];
             parent_->register_camera(device_id, name.c_str());
             return "OK: Camera '" + name + "' registered with ID " + std::to_string(device_id);
@@ -109,7 +114,12 @@ private:
             oss << "  (List not available in this interface)\n";
             return oss.str();
         } else if (args[0] == "add" && args.size() >= 3) {
-            int device_id = std::stoi(args[1]);
+            int device_id;
+            try {
+                device_id = std::stoi(args[1]);
+            } catch (const std::exception&) {
+                return "ERROR: Microphone device ID must be an integer, got '" + args[1] + "'";
+            }
             std::string name = args[2];
             parent_->register_microphone(device_id, name.c_str());
             return "OK: Microphone '" + name + "' registered with ID " + std::to_string(device_id);
@@ -164,6 +174,14 @@ private:
         return tokens;
     }
 };
+
+// Free function declared in the public header so OpenConstructJetson::process_command
+// (in jetson_status.cpp) can delegate to the shell without seeing the PlatoJetson
+// class definition, which is private to this translation unit.
+std::string process_plato_command(OpenConstructJetson* node, const std::string& raw_cmd) {
+    PlatoJetson shell(node);
+    return shell.process(raw_cmd);
+}
 
 } // namespace jetson
 } // namespace openconstruct
