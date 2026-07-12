@@ -328,7 +328,7 @@ std::string OpenConstructJetson::format_cpu_status() {
 std::string OpenConstructJetson::format_memory_status() {
     std::ostringstream oss;
 
-    oss << "=== System Memory Status ===\n";
+    oss << "=== Memory Status ===\n";
     // In a real implementation, read from /proc/meminfo
     oss << "  RAM: 3.2 GB free / 8.0 GB total\n";
     oss << "  Swap: 4.0 GB free / 4.0 GB total\n";

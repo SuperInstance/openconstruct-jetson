@@ -114,9 +114,14 @@ TEST_F(OpenConstructJetsonTest, DescribeSceneReturnsText) {
     std::string scene = jetson_->describe_scene();
 
     EXPECT_FALSE(scene.empty());
+    // describe_scene() returns one of five canned mock descriptions; the check
+    // must accept ANY of them, otherwise it flakes ~40% of the time when the
+    // time-based index lands on the hallway/kitchen strings.
     EXPECT_TRUE(scene.find("indoor") != std::string::npos ||
                 scene.find("outdoor") != std::string::npos ||
-                scene.find("workspace") != std::string::npos);
+                scene.find("workspace") != std::string::npos ||
+                scene.find("hallway") != std::string::npos ||
+                scene.find("kitchen") != std::string::npos);
 }
 
 TEST_F(OpenConstructJetsonTest, DescribeSceneWithoutCameras) {
@@ -141,9 +146,13 @@ TEST_F(OpenConstructJetsonTest, DescribeAudioReturnsText) {
     std::string audio = jetson_->describe_audio();
 
     EXPECT_FALSE(audio.empty());
+    // describe_audio() returns one of five canned mock descriptions; the check
+    // must accept ANY of them (case-sensitive), otherwise it flakes when the
+    // time-based index lands on the "Music..." string.
     EXPECT_TRUE(audio.find("noise") != std::string::npos ||
                 audio.find("speech") != std::string::npos ||
-                audio.find("sounds") != std::string::npos);
+                audio.find("sounds") != std::string::npos ||
+                audio.find("rhythmic") != std::string::npos);
 }
 
 TEST_F(OpenConstructJetsonTest, DescribeAudioWithoutMicrophones) {
@@ -321,6 +330,84 @@ TEST_F(OpenConstructJetsonTest, CudaAvailableInMockMode) {
     jetson_->init(config_path_.c_str());
 
     EXPECT_TRUE(jetson_->cuda_available());
+}
+
+// --- Coverage for hardened error paths (see PRODUCTION_HARDENING.md) ---
+
+// A malformed numeric value in the config must not throw out of init(); init()
+// should still succeed and fall back to the previous/default value.
+TEST_F(OpenConstructJetsonTest, MalformedNumericConfigDoesNotCrash) {
+    std::string bad_config = "/tmp/openconstruct_bad_config.txt";
+    {
+        std::ofstream cfg(bad_config);
+        cfg << "camera_width=not_a_number\n";
+        cfg << "gpu_device_id=12abc\n";
+        cfg << "audio_sample_rate=\n";
+        cfg << "enable_mock_mode=true\n";
+        cfg.close();
+    }
+
+    // Must not throw.
+    jetson_->init(bad_config.c_str());
+    EXPECT_TRUE(jetson_->is_initialized());
+
+    std::remove(bad_config.c_str());
+}
+
+// "camera add" with a non-numeric id must return a clean error, not throw.
+TEST_F(OpenConstructJetsonTest, CameraAddNonNumericIdIsHandled) {
+    jetson_->init(config_path_.c_str());
+
+    testing::internal::CaptureStdout();
+    jetson_->process_command("camera add abc my_camera");
+    std::string output = testing::internal::GetCapturedStdout();
+
+    EXPECT_TRUE(output.find("must be an integer") != std::string::npos);
+}
+
+// "microphone add" with a non-numeric id must return a clean error, not throw.
+TEST_F(OpenConstructJetsonTest, MicrophoneAddNonNumericIdIsHandled) {
+    jetson_->init(config_path_.c_str());
+
+    testing::internal::CaptureStdout();
+    jetson_->process_command("microphone add xyz my_mic");
+    std::string output = testing::internal::GetCapturedStdout();
+
+    EXPECT_TRUE(output.find("must be an integer") != std::string::npos);
+}
+
+// An empty/whitespace-only command is an error, not a crash.
+TEST_F(OpenConstructJetsonTest, EmptyCommandIsRejected) {
+    jetson_->init(config_path_.c_str());
+
+    testing::internal::CaptureStdout();
+    jetson_->process_command("   ");
+    std::string output = testing::internal::GetCapturedStdout();
+
+    EXPECT_TRUE(output.find("ERROR: Empty command") != std::string::npos);
+}
+
+// "describe <unknown>" should give a targeted error.
+TEST_F(OpenConstructJetsonTest, DescribeUnknownTargetIsRejected) {
+    jetson_->init(config_path_.c_str());
+
+    testing::internal::CaptureStdout();
+    jetson_->process_command("describe bogus");
+    std::string output = testing::internal::GetCapturedStdout();
+
+    EXPECT_TRUE(output.find("Unknown describe target") != std::string::npos);
+}
+
+// Calling init() twice is a no-op (guard against double initialization).
+TEST_F(OpenConstructJetsonTest, DoubleInitIsNoOp) {
+    jetson_->init(config_path_.c_str());
+    EXPECT_TRUE(jetson_->is_initialized());
+
+    testing::internal::CaptureStderr();
+    jetson_->init(config_path_.c_str());
+    std::string err = testing::internal::GetCapturedStderr();
+
+    EXPECT_TRUE(err.find("Already initialized") != std::string::npos);
 }
 
 int main(int argc, char** argv) {
