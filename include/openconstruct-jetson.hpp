@@ -116,5 +116,16 @@ private:
     std::string mock_audio_description();
 };
 
+/**
+ * @brief Run a single Plato-shell command against a node.
+ *
+ * Declared here (implemented in plato_jetson.cpp) so that OpenConstructJetson's
+ * process_command() can delegate to the shell without having to see the
+ * PlatoJetson class definition, which lives in a different translation unit.
+ *
+ * @return The shell's textual response.
+ */
+std::string process_plato_command(OpenConstructJetson* node, const std::string& raw_cmd);
+
 } // namespace jetson
 } // namespace openconstruct

@@ -29,8 +29,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake build-essential
-      - name: Configure
-        run: cmake -B build -S .
+      - name: Configure (CPU mock — no CUDA toolkit on this runner)
+        run: cmake -B build -S . -DUSE_CUDA=OFF -DUSE_TENSORRT=OFF -DBUILD_TESTS=ON
       - name: Build
         run: cmake --build build
       - name: Test
@@ -45,7 +45,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake build-essential
-      - name: Configure and build (release)
+      - name: Configure and build (release, CPU mock — no CUDA toolkit on this runner)
         run: |
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DUSE_CUDA=OFF -DUSE_TENSORRT=OFF
           cmake --build build
