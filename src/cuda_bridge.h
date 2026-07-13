@@ -20,37 +20,27 @@
 extern "C" {
 #endif
 
-void*  cuda_create_stream(void);
-void   cuda_destroy_stream(void* stream);
+void *cuda_create_stream(void);
+void cuda_destroy_stream(void *stream);
 
-void   cuda_image_to_grayscale(const unsigned char* d_input,
-                               unsigned char* d_output,
-                               int width,
-                               int height,
-                               void* stream);
+void cuda_image_to_grayscale(const unsigned char *d_input,
+                             unsigned char *d_output, int width, int height,
+                             void *stream);
 
-void   cuda_audio_preprocess(const float* d_input,
-                             float* d_output,
-                             int length,
-                             void* stream);
+void cuda_audio_preprocess(const float *d_input, float *d_output, int length,
+                           void *stream);
 
-void   cuda_extract_features(const unsigned char* d_grayscale,
-                             float* d_features,
-                             int width,
-                             int height,
-                             int feature_dim,
-                             void* stream);
+void cuda_extract_features(const unsigned char *d_grayscale, float *d_features,
+                           int width, int height, int feature_dim,
+                           void *stream);
 
-void   cuda_synchronize_stream(void* stream);
+void cuda_synchronize_stream(void *stream);
 
-int    cuda_get_device_count(void);
+int cuda_get_device_count(void);
 
-void   cuda_get_device_properties(int device,
-                                  char* name,
-                                  int name_size,
-                                  int* compute_major,
-                                  int* compute_minor,
-                                  size_t* total_mem);
+void cuda_get_device_properties(int device, char *name, int name_size,
+                                int *compute_major, int *compute_minor,
+                                size_t *total_mem);
 
 size_t cuda_get_free_memory(int device);
 
